@@ -1,4 +1,4 @@
-# embed_sidecar
+# embed_xmp_sidecars
 for raw photo editing, embed sidecar files into images via a wrapper around exiftool
 
 Problem:
