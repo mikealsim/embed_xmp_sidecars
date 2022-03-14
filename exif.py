@@ -2,7 +2,7 @@
 # Aplicaiton for emdeding and extracting xmp sidecar files from images
 # Created by Mikeal Simburger (Simburger.com)
 # Mar 13th 2021
-# requires exiftool.exe
+# requires exiftool.exe from exiftool.org
 # tested in windows python 3.8.6
 
 import os
@@ -94,7 +94,8 @@ def Encode(file_path):
             if os.path.isfile(file):
                 image_files.append(file)
 
-        for xmp_file in glob.iglob(dir_path+exposure_path+"\\**", recursive=True):
+        for xmp_file in glob.iglob(dir_path+exposure_path+"\\**",
+                                   recursive=True):
             # skip folders
             if not os.path.isfile(xmp_file):
                 continue
@@ -111,7 +112,8 @@ def Encode(file_path):
                     # print(common_prefix)
                     relitive_path = xmp_file.replace(common_prefix, "")
                     # print(relitive_path)
-                    relitive_path = relitive_path.replace(file_parts[0], file_name_code)
+                    relitive_path = relitive_path.replace(file_parts[0],
+                                                          file_name_code)
 
                     edit_time = os.path.getmtime(xmp_file)
                     notes = "app:exposure\n"
@@ -122,7 +124,8 @@ def Encode(file_path):
 
     cmds = []
     for file in files:
-        cmd = exif_path + '-m -UserComment=\"'+file[2]+'\"'+' -b -tagsfromfile\"'+file[0]+'\" -xmp \"'+file[1]+'\"'
+        cmd = exif_path + '-m -UserComment=\"'+file[2]+'\"' +
+        ' -b -tagsfromfile\"'+file[0]+'\" -xmp \"'+file[1]+'\"'
         cmds.append(cmd)
 
     print("embeding xmp's")
@@ -134,11 +137,13 @@ def Decode(file_path):
     print("decode xmp data")
     with tempfile.TemporaryDirectory() as temp_path:
         # extract xmp's
-        cmd = exif_path + ' -m -q -o \"'+temp_path+'\%f.xmp\" -xmp ' + file_path
+        cmd = exif_path + ' -m -q -o \"'+temp_path +
+        '\%f.xmp\" -xmp ' + file_path
         RunCommand(cmd)
 
         # extract notes
-        cmd = exif_path + ' -m -q -UserComment \"'+file_path+'\" -b -w \"' + temp_path + '\%f.txt\"'
+        cmd = exif_path + ' -m -q -UserComment \"' + file_path +
+        '\" -b -w \"' + temp_path + '\%f.txt\"'
         RunCommand(cmd)
 
         txt_files = []
@@ -183,7 +188,8 @@ def Decode(file_path):
 
                     # move temp file to correct location
                     new_name = make_dir+"\\"+path
-                    new_name = new_name.replace(file_name_code, os.path.basename(txt_name))
+                    new_name = new_name.replace(file_name_code,
+                                                os.path.basename(txt_name))
 
                     time.sleep(1)
 
@@ -231,19 +237,14 @@ def Remove(file_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='Emdeds and extracts xmp sidecar files from images')
+        description='Emdeds and extracts xmp sidecar files from images', 
+        formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument("-e", "--encode",
-                        action='store_true',
-                        help="embed xmp into image")
-
-    parser.add_argument("-d", "--decode",
-                        action='store_true',
-                        help="extract xmp from image")
-
-    parser.add_argument("-r", "--remove",
-                        action='store_true',
-                        help="delete xmp from image")
+    parser.add_argument("-o", "--operation",
+                        choices=['e', 'encode', 'd', 'decode', 'r', 'remove'],
+                        help='e/encode: embed xmp into image\n' +
+                        'd/decode: extract xmp from image\n' +
+                        'r/remove: delete xmp from image')
 
     parser.add_argument("-f", "--file",
                         help="single file or folder",
@@ -255,18 +256,22 @@ if __name__ == "__main__":
     except:
         parser.print_help()
         sys.exit(0)
-
-    res = ''
+    
+    res = ''    
     start = time.time()
-    if args.encode and not args.decode and not args.remove:
-        Encode(args.file)
-    elif args.decode and not args.encode and not args.remove:
-        Decode(args.file)
-    elif args.remove:
-        res = Remove(args.file)
-    else:
-        print("Expects encode, decode, OR remove parameter")
-        exit()
+    
+    if args.operation:
+        operation = args.operation.lower()
+        if operation == 'e' or operation == 'encode':
+            Encode(args.file)
+        elif operation == 'd' or operation == 'decode':
+            Decode(args.file)
+        elif operation == 'r' or operation == 'remove':
+            res = Remove(args.file)
+        else:
+            print("bad input")
+            parser.print_help()
+            exit()
 
     # no durration if cancelled
     if res != -1:
