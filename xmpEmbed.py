@@ -19,6 +19,21 @@ file_name_code = "%n$"
 exif_path = 'exiftool.exe '
 processes_count = os.cpu_count()
 
+image_ext = [".dng",".cr2",".crw",".raf",".raw",".nef",".orf",".sr2",".jpg",".tif",".psd",".png"]
+def ImagesFromDir(dir_path):
+    image_files = []
+    if os.path.exists(dir_path):
+        for file in glob.iglob(dir_path+'\\*', recursive=False):
+            file_extension = os.path.splitext(file)
+            if str(file_extension[1]).lower() in image_ext:
+                # skip copies
+                if "_original" in file:
+                    continue
+                # skip folders
+                if os.path.isfile(file):
+                    image_files.append(file)
+                
+    return image_files
 
 def Mbox(title, text, style):
     return ctypes.windll.user32.MessageBoxW(0, text, title, style)
@@ -85,15 +100,16 @@ def Encode(file_path):
         file_filter = file_parts[0]
 
     if os.path.exists(dir_path+exposure_path):
+        images = ImagesFromDir(dir_path)
         image_files = []
-        for file in glob.iglob(dir_path+'\\*', recursive=False):
-            # skip copies
-            if "_original" in file:
-                continue
-            # skip folders
-            if os.path.isfile(file):
-                image_files.append(file)
-
+        
+        if len(file_filter) > 0:
+            for image in images:
+                if file_filter in image:
+                    image_files.append(image)
+        else:
+            image_files = images
+            
         for xmp_file in glob.iglob(dir_path+exposure_path+"\\**",
                                    recursive=True):
             # skip folders
@@ -109,42 +125,49 @@ def Encode(file_path):
 
                 if file_parts[0] in im_f:
                     common_prefix = os.path.commonprefix([xmp_file, im_f])
-                    # print(common_prefix)
                     relitive_path = xmp_file.replace(common_prefix, "")
-                    # print(relitive_path)
                     relitive_path = relitive_path.replace(file_parts[0],
                                                           file_name_code)
 
                     edit_time = os.path.getmtime(xmp_file)
-                    notes = "app:exposure\n"
-                    notes += "path:" + relitive_path + "\n"
+                    notes = 'app:exposure\n'
+                    notes += 'path:' + relitive_path + '\n'
                     edit = str(edit_time)
                     notes += 'edited:' + edit + '\n'
                     files.append((xmp_file, im_f, notes))
 
-    cmds = []
+    cmds_comments = []
+    cmds_xmp = []
     for file in files:
-        cmd = exif_path + '-m -UserComment=\"'+file[2]+'\"' +
-        ' -b -tagsfromfile\"'+file[0]+'\" -xmp \"'+file[1]+'\"'
-        cmds.append(cmd)
+        #cmd = exif_path + '-m -UserComment=\"'+file[2]+'\" -b -tagsfromfile\"'+file[0]+'\" -xmp \"'+file[1]+'\"'
+        cmd = exif_path + '-m -usercomment=\"'+file[2]+'\" \"'+file[1]+'\"'
+        cmds_comments.append(cmd) 
+               
+        cmd = exif_path + '-b -tagsfromfile \"'+file[0]+'\" -xmp \"'+file[1]+'\"'
+        cmds_xmp.append(cmd)
 
-    print("embeding xmp's")
-    RunParallelCommand(cmds)
+    
+    print("embeding xmp's")        
+    RunParallelCommand(cmds_comments)
+    RunParallelCommand(cmds_xmp)
     return
 
 
 def Decode(file_path):
     print("decode xmp data")
     with tempfile.TemporaryDirectory() as temp_path:
-        # extract xmp's
-        cmd = exif_path + ' -m -q -o \"'+temp_path +
-        '\%f.xmp\" -xmp ' + file_path
-        RunCommand(cmd)
+        images = ImagesFromDir(file_path)
 
-        # extract notes
-        cmd = exif_path + ' -m -q -UserComment \"' + file_path +
-        '\" -b -w \"' + temp_path + '\%f.txt\"'
-        RunCommand(cmd)
+        cmds_comments = []
+        cmds_xmp = []
+        for image in images:
+            cmd = exif_path + ' -m -q -o \"'+temp_path + '\%f.xmp\" -xmp ' + image
+            cmds_comments.append(cmd)
+            cmd = exif_path + ' -m -q -usercomment \"' + image + '\" -b -w \"' + temp_path + '\%f.txt\"'
+            cmds_xmp.append(cmd)
+
+        RunParallelCommand(cmds_xmp)
+        RunParallelCommand(cmds_comments)
 
         txt_files = []
         xmp_files = []
@@ -226,9 +249,21 @@ def Remove(file_path):
                file_path, 1)
 
     if res == 1:  # yes
-        cmd = exif_path + '-overwrite_original -usercomment = "" -xmp:all = "-all:all<xmp:time:all" '+file_path
-        RunCommand(cmd)
-        print("removed xmp data")
+        cmds_comments = []
+        cmds_xmp = []
+        
+        image_files = ImagesFromDir(file_path)
+        for image in image_files:
+            cmd = exif_path + '-overwrite_original -usercomment="" '+ image
+            cmds_comments.append(cmd)
+
+            cmd = exif_path + '-overwrite_original  -xmp="" '+ image
+            cmds_xmp.append(cmd)
+
+        print("removing xmp data")
+        RunParallelCommand(cmds_comments)
+        RunParallelCommand(cmds_xmp)
+        
     elif res == 2:  # cancel
         print("cancelled")
         return -1
